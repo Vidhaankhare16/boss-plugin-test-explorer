@@ -1,0 +1,40 @@
+name: Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+  pull_request:
+
+# Builds and tests the plugin. It does NOT publish: store publication needs the
+# org's BOSS_STORE_PLUGIN_PUBLISH_KEY and is a separate maintainer step.
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download the boss-plugin-api jar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build/downloaded-deps
+          gh release download --repo risa-labs-inc/boss-plugin-api \
+            --pattern 'boss-plugin-api-*.jar' --output build/downloaded-deps/boss-plugin-api.jar
+
+      - name: Build and test
+        env:
+          CI: 'true'
+        run: ./gradlew test buildPluginJar --console=plain
+
+      - name: Upload the plugin jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: boss-plugin-test-explorer
+          path: build/libs/boss-plugin-test-explorer-*.jar

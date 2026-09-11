@@ -1,0 +1,52 @@
+name: Release
+
+# Attaches the built jar to a GitHub Release when a version tag is pushed, so the plugin can be
+# installed from a release URL as well as from a local build.
+#
+# This is not store publication and does not pretend to be. Publishing to the BOSS Plugin Store
+# needs credentials held by BossConsole maintainers, and the contributor guide is explicit that
+# copying the org's release workflow into a personal repository does not grant them. Nothing here
+# uses a secret beyond the token GitHub issues to this run.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Download the boss-plugin-api jar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p build/downloaded-deps
+          gh release download --repo risa-labs-inc/boss-plugin-api \
+            --pattern 'boss-plugin-api-*.jar' --output build/downloaded-deps/boss-plugin-api.jar
+
+      # A tag that cannot pass its own tests should not become a release.
+      - name: Build and test
+        env:
+          CI: 'true'
+        run: ./gradlew test buildPluginJar --console=plain
+
+      - name: Attach the jar to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            build/libs/boss-plugin-test-explorer-*.jar
