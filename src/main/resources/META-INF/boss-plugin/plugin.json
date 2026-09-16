@@ -1,0 +1,15 @@
+{
+  "manifestVersion": 1,
+  "pluginId": "ai.rever.boss.plugin.dynamic.testexplorer",
+  "displayName": "Test Explorer",
+  "version": "0.1.0",
+  "apiVersion": "1.0.51",
+  "minApiVersion": "1.0.51",
+  "minBossVersion": "9.2.20",
+  "mainClass": "ai.rever.boss.plugin.dynamic.testexplorer.TestExplorerDynamicPlugin",
+  "type": "panel",
+  "description": "Run the open project's tests and see a pass/fail tree, plus test_* MCP tools for agents",
+  "author": "Vidhaankhare16",
+  "url": "https://github.com/Vidhaankhare16/boss-plugin-test-explorer",
+  "panel": { "position": "left_bottom", "priority": 30 }
+}
