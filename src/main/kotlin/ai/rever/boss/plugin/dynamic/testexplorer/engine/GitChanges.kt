@@ -36,7 +36,15 @@ class GitChanges(
 
     private companion object {
         const val GIT_TIMEOUT_SECONDS = 20L
+        const val DRAIN_JOIN_MILLIS = 2_000L
 
+        /**
+         * Runs git and returns its stdout, or null on failure or timeout.
+         *
+         * The output is drained on its own thread while this one waits with the timeout. Reading it
+         * to the end first and then calling the timed `waitFor` would make the timeout meaningless:
+         * a git blocked on an index lock never closes stdout, so the read alone would hang the run.
+         */
         fun runGit(
             dir: File,
             args: List<String>,
@@ -47,14 +55,17 @@ class GitChanges(
                         .directory(dir)
                         .redirectError(ProcessBuilder.Redirect.DISCARD)
                         .start()
-                val out = process.inputStream.bufferedReader().readText()
+                val out = StringBuilder()
+                val drain =
+                    Thread { process.inputStream.bufferedReader().use { out.append(it.readText()) } }
+                        .apply {
+                            isDaemon = true
+                            start()
+                        }
                 val finished = process.waitFor(GIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-                if (!finished) {
-                    process.destroyForcibly()
-                    null
-                } else {
-                    out.takeIf { process.exitValue() == 0 }
-                }
+                if (!finished) process.destroyForcibly()
+                drain.join(DRAIN_JOIN_MILLIS)
+                out.toString().takeIf { finished && process.exitValue() == 0 }
             }.getOrNull()
     }
 }
