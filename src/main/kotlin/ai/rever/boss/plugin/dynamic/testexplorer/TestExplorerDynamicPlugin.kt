@@ -15,7 +15,7 @@ import ai.rever.boss.plugin.dynamic.testexplorer.core.SourceLocation
 class TestExplorerDynamicPlugin : DynamicPlugin {
     override val pluginId: String = "ai.rever.boss.plugin.dynamic.testexplorer"
     override val displayName: String = "Test Explorer"
-    override val version: String = "0.1.0"
+    override val version: String = "0.2.0"
     override val description: String = "Run the open project's tests and see a pass/fail tree, plus test_* MCP tools"
     override val author: String = "Vidhaankhare16"
     override val url: String = "https://github.com/Vidhaankhare16/boss-plugin-test-explorer"

@@ -13,11 +13,17 @@ plugin can *launch* an entry point, but it shows no results.
 Test Explorer closes that gap on both sides at once:
 
 - **For a person:** one Run button, a summary line (how many passed, failed, skipped), and a tree
-  of suites and cases coloured by outcome. A failing case expands to its message and stack. A
-  **Rerun failed** button runs only what broke.
+  of suites and cases coloured by outcome. A failing case expands to its message and stack, and
+  **one click opens its file at the line that broke**, in BOSS's own editor. A **Rerun failed**
+  button runs only what broke.
 - **For an agent:** the same run is reachable as MCP tools that return **structured** results, so
-  "did my change pass the tests, and if not which ones broke and why" is one tool call, not a
-  parse of terminal output.
+  "did my change pass the tests, and if not which ones broke, why, and where" is one tool call,
+  not a parse of terminal output. Each failure comes with `at <file>:<line>`, so the agent can go
+  straight to the fix and then `test_rerun_failed` to prove it.
+
+The line is read from the runner's own report, not guessed from a test's name: the test's own
+stack frame for Gradle and Maven (skipping the assertion library's frames above it), and the frame
+in the test's module for pytest.
 
 ## Supported runners
 
@@ -36,7 +42,7 @@ build tool and pytest markers are present, the build tool wins.
 
 | Tool | Read-only | What it does |
 |---|---|---|
-| `test_run` | no | Run the whole suite; report counts, exit code, and the failing tests with messages. |
+| `test_run` | no | Run the whole suite; report counts, exit code, and the failing tests with messages and `file:line`. |
 | `test_rerun_failed` | no | Rerun only the tests that failed last time (a full run when there were none). |
 | `test_results` | yes | The most recent run's outcome, without starting a run. |
 | `test_list` | yes | Every test from the last run with its pass/fail/skip status. |
@@ -122,10 +128,9 @@ Stated here rather than discovered later.
 - **Reports are matched by modification time.** A run that writes no report at all (a compile
   error) is reported as exactly that, but a runner that leaves a report untouched because it
   skipped work will look like it produced nothing.
-- **Not yet loaded into a running BOSS host.** It builds, its tests pass, and the jar carries a
-  valid manifest, but the panel's live appearance and the MCP round-trip against a real desktop are
-  unverified. See [docs/VALIDATION.md](docs/VALIDATION.md) for exactly what has and has not been
-  tested.
+- **Validated live on BOSS 9.5.22 (Windows 11) with pytest.** Gradle and Maven are covered by
+  tests but not yet by a live run inside the host, and macOS is untested. See
+  [docs/VALIDATION.md](docs/VALIDATION.md) for exactly what has and has not been tested.
 
 ## License
 

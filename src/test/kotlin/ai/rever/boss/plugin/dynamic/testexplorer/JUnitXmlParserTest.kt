@@ -83,4 +83,22 @@ class JUnitXmlParserTest {
         assertTrue(JUnitXmlParser.parse("not xml at all <<<").isEmpty())
         assertTrue(JUnitXmlParser.parse("<other><thing/></other>").isEmpty())
     }
+
+    @Test
+    fun `a pytest run's single suite is grouped by module, in the order the runner ran them`() {
+        val xml =
+            """
+            <testsuites><testsuite name="pytest" tests="3">
+              <testcase classname="tests.test_cart" name="test_a" time="0.01"/>
+              <testcase classname="tests.test_tax" name="test_b" time="0.01"/>
+              <testcase classname="tests.test_cart" name="test_c" time="0.01"><failure message="no">boom</failure></testcase>
+            </testsuite></testsuites>
+            """.trimIndent()
+
+        val suites = JUnitXmlParser.parse(xml)
+
+        assertEquals(listOf("tests.test_cart", "tests.test_tax"), suites.map { it.name })
+        assertEquals(listOf("test_a", "test_c"), suites.first().cases.map { it.name })
+        assertEquals(1, suites.first().counts.failing)
+    }
 }
