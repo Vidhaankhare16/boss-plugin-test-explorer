@@ -9,6 +9,7 @@ import ai.rever.boss.plugin.dynamic.testexplorer.engine.TestExecution
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -40,6 +41,9 @@ class TestExplorerSessionTest {
         val modes = mutableListOf<RunMode>()
         var lastPriorFailures: List<TestCaseResult> = emptyList()
 
+        /** Completes once a run has actually begun: the session starts it on another thread. */
+        val started = CompletableDeferred<Unit>()
+
         override suspend fun run(
             mode: RunMode,
             priorFailures: List<TestCaseResult>,
@@ -47,6 +51,7 @@ class TestExplorerSessionTest {
         ): TestRunReport {
             modes += mode
             lastPriorFailures = priorFailures
+            started.complete(Unit)
             lines.forEach(onOutput)
             gate?.await()
             return result
@@ -84,6 +89,9 @@ class TestExplorerSessionTest {
         val session = session(execution)
 
         val first = session.start(RunMode.ALL)
+        // The run begins on the session's own scope. Counting runs before it has started would read
+        // zero on a slow machine, which is a race in the test, not a second run being refused.
+        withTimeout(5_000) { execution.started.await() }
         val second = session.start(RunMode.ALL)
 
         assertSame(first, second, "a second start must not spawn a competing run")

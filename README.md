@@ -21,6 +21,10 @@ Test Explorer closes that gap on both sides at once:
   not a parse of terminal output. Each failure comes with `at <file>:<line>`, so the agent can go
   straight to the fix and then `test_rerun_failed` to prove it.
 
+**Red tests stay visible.** After a run, the host status bar shows the outcome, a red
+"2 failing" or a green "8 passed", so a failure is not forgotten once the panel is closed.
+Clicking it opens the panel. Nothing is shown before the first run.
+
 **Run only what changed.** The panel's **Changed** button and the `test_affected` tool read the
 uncommitted changes from git (staged, unstaged and untracked) and run just the tests they touch: a
 changed test file, and every test that imports a changed source file. A changed build or test

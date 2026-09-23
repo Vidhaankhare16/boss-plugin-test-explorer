@@ -16,18 +16,25 @@ Loaded into the released desktop app (the official `BOSS-9.5.22.msi`, host plugi
 | Panel | Opened from the Toolbox menu | Summary `4 passed, 2 failing` in red, failing cases marked, an open icon on exactly the two located failures |
 | Click to source | The open icon on `test_ten_percent_discount` | The host editor opened `tests/test_cart.py` at **Ln 15, Col 1** |
 | Rerun after a fix | Fixed the bug, `BOSS.exe mcp invoke test_rerun_failed` | `pytest --last-failed` ran only the two, `2 tests: 2 passed`, exit 0 |
+| Status bar | After `mcp invoke test_run` | `2 failing` in red in the host status bar; clicking it with the panel closed opened the Test Explorer panel |
 | Scoped run, nothing changed | `mcp invoke test_affected` on a clean git work tree | Nothing ran: `Note: No files have changed.` |
 | Scoped run after an edit | Fixed `pricing/cart.py`, `mcp invoke test_affected` | `pytest tests/test_cart.py` only - `test_shipping.py` untouched - `6 passed`, with `Note: 1 changed file selects 1 test file: tests/test_cart.py.` |
 
-Two defects that only a live run could show, both fixed before this commit:
+Defects that only a live run could show, all fixed:
 
 - **The panel was called "Tests"** while everything else, the proposal included, says "Test
   Explorer". Told to open "Test Explorer", a person could not find it in the Toolbox menu.
 - **pytest's tests were all grouped under "pytest"**, the name of the report's single
   `<testsuite>`. They are now grouped by module (`test_cart`), the way Gradle and Surefire groups
   already read.
+- **The status-bar click first handed a `boss://` link to the OS**, which opened it in the web
+  browser instead of BOSS. It now reveals the panel through the host's own
+  `PanelEventProvider.openPanel`, and a failure in that call is caught and logged rather than left
+  uncaught in the host UI, where a desktop Compose app can treat it as fatal. BOSS closed once during
+  this work, around a status-bar click; no Windows fault was recorded and no log was available, so the
+  cause is not established, but after the change the click opened the panel with BOSS staying up.
 
-## Automated: 71 tests
+## Automated: 76 tests
 
 ```bash
 ./gradlew test
@@ -38,6 +45,7 @@ Two defects that only a live run could show, both fixed before this commit:
 | `AffectedTestsTest` | 11 | Which tests a change selects: every Python import form, `__init__` as the package, conventional names, JVM import and same-package use (and not a word like `cartridge`), configuration files that force a full run, untested files reported; and the exact pytest, per-module Gradle and Maven commands |
 | `TestRunnerAffectedTest` | 4 | On disk: the test files searched skip build output and virtualenvs; a changed module selects its importers; outside git, and with a change no test refers to, nothing runs and the note says why |
 | `GitChangesTest` | 3 | Tracked and untracked changes combined relative to the project; a repository with no commit; not a repository |
+| `TestStatusBarItemTest` | 5 | The status-bar label: nothing before a run, "Running tests..." over a previous result, failures and errors counted together, "N passed" when green, nothing for a run with no results |
 | `SourceLocatorTest` | 12 | Where a failure broke: the test's own JVM frame below the assertion library's, Kotlin names with spaces, nested/lambda classes, pytest's module frame, Windows separators and drive letters, and resolving to a file while skipping build output and refusing to guess between two same-named files |
 | `TestRunnerDetectionTest` | 9 | Which framework a project is, and the exact argv for a run and a rerun on both Unix and Windows |
 | `TestRunnerReportsTest` | 7 | The report walk against a real directory tree: multi-module discovery, stale-run exclusion, and pytest's single file |

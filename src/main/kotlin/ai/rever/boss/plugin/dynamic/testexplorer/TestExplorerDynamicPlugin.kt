@@ -39,6 +39,17 @@ class TestExplorerDynamicPlugin : DynamicPlugin {
         context.panelRegistry.registerPanel(TestExplorerInfo) { ctx, panelInfo ->
             TestExplorerComponent(ctx, panelInfo, session, openSource)
         }
+        // The latest run's outcome in the status bar, so red tests stay visible with the panel closed.
+        // Removed by the host when this plugin is disabled or unloaded, like the tools below.
+        val panelEvents = context.panelEventProvider
+        val windowId = context.windowId
+        val openPanel: (suspend () -> Unit)? =
+            if (panelEvents != null && windowId != null) {
+                { panelEvents.openPanel(TestExplorerInfo.id, windowId) }
+            } else {
+                null
+            }
+        context.registerStatusBarItem(TestStatusBarItem(session, openPanel))
         // Contribute test_* MCP tools; auto-removed when this plugin is disabled or unloaded.
         context.registerMcpToolProvider(TestExplorerMcpToolProvider(pluginId, session))
     }
