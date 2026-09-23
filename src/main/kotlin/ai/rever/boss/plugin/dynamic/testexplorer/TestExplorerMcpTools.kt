@@ -43,6 +43,17 @@ internal class TestExplorerMcpToolProvider(
                 handler = McpToolHandler { runResult(RunMode.FAILED_ONLY) },
             ),
             McpToolDefinition(
+                name = "test_affected",
+                description = "Run only the tests affected by the project's uncommitted changes (staged, " +
+                    "unstaged, and untracked, from git): changed test files, and the tests that import a " +
+                    "changed source file. Runs everything when a build or test configuration file changed, " +
+                    "and says which changed files no test refers to. Use it after an edit for fast feedback, " +
+                    "then test_run before finishing. A long run returns a 'still running' note; call " +
+                    "test_results for the outcome.",
+                readOnly = false,
+                handler = McpToolHandler { runResult(RunMode.AFFECTED) },
+            ),
+            McpToolDefinition(
                 name = "test_results",
                 description = "Show the result of the most recent test run: counts, exit code, and the " +
                     "failing tests with their messages and the file:line each one failed at. Does not start a run.",

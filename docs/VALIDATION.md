@@ -16,6 +16,8 @@ Loaded into the released desktop app (the official `BOSS-9.5.22.msi`, host plugi
 | Panel | Opened from the Toolbox menu | Summary `4 passed, 2 failing` in red, failing cases marked, an open icon on exactly the two located failures |
 | Click to source | The open icon on `test_ten_percent_discount` | The host editor opened `tests/test_cart.py` at **Ln 15, Col 1** |
 | Rerun after a fix | Fixed the bug, `BOSS.exe mcp invoke test_rerun_failed` | `pytest --last-failed` ran only the two, `2 tests: 2 passed`, exit 0 |
+| Scoped run, nothing changed | `mcp invoke test_affected` on a clean git work tree | Nothing ran: `Note: No files have changed.` |
+| Scoped run after an edit | Fixed `pricing/cart.py`, `mcp invoke test_affected` | `pytest tests/test_cart.py` only - `test_shipping.py` untouched - `6 passed`, with `Note: 1 changed file selects 1 test file: tests/test_cart.py.` |
 
 Two defects that only a live run could show, both fixed before this commit:
 
@@ -25,7 +27,7 @@ Two defects that only a live run could show, both fixed before this commit:
   `<testsuite>`. They are now grouped by module (`test_cart`), the way Gradle and Surefire groups
   already read.
 
-## Automated: 53 tests
+## Automated: 71 tests
 
 ```bash
 ./gradlew test
@@ -33,11 +35,14 @@ Two defects that only a live run could show, both fixed before this commit:
 
 | Suite | Tests | What it pins |
 |---|---:|---|
+| `AffectedTestsTest` | 11 | Which tests a change selects: every Python import form, `__init__` as the package, conventional names, JVM import and same-package use (and not a word like `cartridge`), configuration files that force a full run, untested files reported; and the exact pytest, per-module Gradle and Maven commands |
+| `TestRunnerAffectedTest` | 4 | On disk: the test files searched skip build output and virtualenvs; a changed module selects its importers; outside git, and with a change no test refers to, nothing runs and the note says why |
+| `GitChangesTest` | 3 | Tracked and untracked changes combined relative to the project; a repository with no commit; not a repository |
 | `SourceLocatorTest` | 12 | Where a failure broke: the test's own JVM frame below the assertion library's, Kotlin names with spaces, nested/lambda classes, pytest's module frame, Windows separators and drive letters, and resolving to a file while skipping build output and refusing to guess between two same-named files |
 | `TestRunnerDetectionTest` | 9 | Which framework a project is, and the exact argv for a run and a rerun on both Unix and Windows |
 | `TestRunnerReportsTest` | 7 | The report walk against a real directory tree: multi-module discovery, stale-run exclusion, and pytest's single file |
 | `TestExplorerSessionTest` | 7 | Orchestration: one run at a time, a bounded wait that does not cancel the run, no project open, and failure locations published with the report |
-| `TestExplorerMcpToolsTest` | 5 | The agent-facing contract, including which tools are declared as executing |
+| `TestExplorerMcpToolsTest` | 5 | The agent-facing contract, including which tools are declared as executing (`test_affected` among them) |
 | `JUnitXmlParserTest` | 5 | Pass, fail, error and skip; the `<testsuites>` wrapper; pytest's blank classname; pytest's single suite grouped by module; non-JUnit input |
 | `TestReportCollectorTest` | 4 | What a run means, including a non-zero exit with no failing test |
 | `TestReportTextTest` | 4 | The agent-facing text: counts first, failures with their first message line and the `at file:line` they broke at, and truncation |

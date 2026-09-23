@@ -47,6 +47,7 @@ import compose.icons.feathericons.ChevronDown
 import compose.icons.feathericons.ChevronRight
 import compose.icons.feathericons.ExternalLink
 import compose.icons.feathericons.FileText
+import compose.icons.feathericons.GitBranch
 import compose.icons.feathericons.Filter
 import compose.icons.feathericons.Play
 import compose.icons.feathericons.RefreshCw
@@ -89,6 +90,7 @@ fun TestExplorerContent(
                 running = running,
                 hasFailures = report?.failures?.isNotEmpty() == true,
                 onRun = { scope.launch { session.start(RunMode.ALL) } },
+                onRunChanged = { scope.launch { session.start(RunMode.AFFECTED) } },
                 onRerunFailed = { scope.launch { session.start(RunMode.FAILED_ONLY) } },
                 onStop = { session.stop() },
             )
@@ -127,6 +129,7 @@ private fun Header(
     running: Boolean,
     hasFailures: Boolean,
     onRun: () -> Unit,
+    onRunChanged: () -> Unit,
     onRerunFailed: () -> Unit,
     onStop: () -> Unit,
 ) {
@@ -142,6 +145,14 @@ private fun Header(
             ActionButton(icon = FeatherIcons.Square, label = "Stop", tint = BossThemeColors.ErrorColor, onClick = onStop)
         } else {
             ActionButton(icon = FeatherIcons.Play, label = "Run", tint = BossThemeColors.SuccessColor, onClick = onRun)
+            Spacer(Modifier.width(4.dp))
+            // Only the tests the uncommitted changes touch: the quick check after an edit.
+            ActionButton(
+                icon = FeatherIcons.GitBranch,
+                label = "Changed",
+                tint = BossThemeColors.AccentColor,
+                onClick = onRunChanged,
+            )
             if (hasFailures) {
                 Spacer(Modifier.width(4.dp))
                 ActionButton(

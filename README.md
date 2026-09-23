@@ -21,6 +21,13 @@ Test Explorer closes that gap on both sides at once:
   not a parse of terminal output. Each failure comes with `at <file>:<line>`, so the agent can go
   straight to the fix and then `test_rerun_failed` to prove it.
 
+**Run only what changed.** The panel's **Changed** button and the `test_affected` tool read the
+uncommitted changes from git (staged, unstaged and untracked) and run just the tests they touch: a
+changed test file, and every test that imports a changed source file. A changed build or test
+configuration file (`build.gradle.kts`, `pom.xml`, `conftest.py`, `pyproject.toml`) runs everything,
+because it can affect any test, and the run says so. A changed file that no test refers to is named,
+because "no test failed" says nothing about code no test covers.
+
 The line is read from the runner's own report, not guessed from a test's name: the test's own
 stack frame for Gradle and Maven (skipping the assertion library's frames above it), and the frame
 in the test's module for pytest.
@@ -44,6 +51,7 @@ build tool and pytest markers are present, the build tool wins.
 |---|---|---|
 | `test_run` | no | Run the whole suite; report counts, exit code, and the failing tests with messages and `file:line`. |
 | `test_rerun_failed` | no | Rerun only the tests that failed last time (a full run when there were none). |
+| `test_affected` | no | Run only the tests the uncommitted changes touch, and say which changed files no test refers to. |
 | `test_results` | yes | The most recent run's outcome, without starting a run. |
 | `test_list` | yes | Every test from the last run with its pass/fail/skip status. |
 
