@@ -29,8 +29,8 @@ internal class TestExplorerMcpToolProvider(
             McpToolDefinition(
                 name = "test_run",
                 description = "Run the open BOSS project's test suite (Gradle, Maven, or pytest) and " +
-                    "report how many passed, failed, or were skipped, with the failing tests and their " +
-                    "messages. A long run returns a 'still running' note; call test_results for the outcome.",
+                    "report how many passed, failed, or were skipped, with the failing tests, their " +
+                    "messages, and the file:line each one failed at. A long run returns a 'still running' note; call test_results for the outcome.",
                 readOnly = false,
                 handler = McpToolHandler { runResult(RunMode.ALL) },
             ),
@@ -45,7 +45,7 @@ internal class TestExplorerMcpToolProvider(
             McpToolDefinition(
                 name = "test_results",
                 description = "Show the result of the most recent test run: counts, exit code, and the " +
-                    "failing tests with their messages. Does not start a run.",
+                    "failing tests with their messages and the file:line each one failed at. Does not start a run.",
                 handler = McpToolHandler { latestResult() },
             ),
             McpToolDefinition(
@@ -59,7 +59,7 @@ internal class TestExplorerMcpToolProvider(
     private suspend fun runResult(mode: RunMode): McpToolResult {
         val report = session.runBounded(mode, boundMillis)
         return when {
-            report != null -> McpToolResult(TestReportText.summary(report))
+            report != null -> McpToolResult(summaryOf(report))
             session.projectMissing.value -> noProject()
             else ->
                 McpToolResult(
@@ -71,8 +71,11 @@ internal class TestExplorerMcpToolProvider(
     private fun latestResult(): McpToolResult {
         val report = session.report.value ?: return notRunYet()
         val prefix = if (session.isRunning.value) "A run is in progress; showing the previous result.\n\n" else ""
-        return McpToolResult(prefix + TestReportText.summary(report))
+        return McpToolResult(prefix + summaryOf(report))
     }
+
+    private fun summaryOf(report: TestRunReport): String =
+        TestReportText.summary(report, session.locations.value, session.projectRoot.value)
 
     private fun listResult(): McpToolResult {
         val report: TestRunReport = session.report.value ?: return notRunYet()

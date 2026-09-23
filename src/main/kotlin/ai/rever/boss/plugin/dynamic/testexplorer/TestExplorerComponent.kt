@@ -2,6 +2,7 @@ package ai.rever.boss.plugin.dynamic.testexplorer
 
 import ai.rever.boss.plugin.api.PanelComponentWithUI
 import ai.rever.boss.plugin.api.PanelInfo
+import ai.rever.boss.plugin.dynamic.testexplorer.core.SourceLocation
 import androidx.compose.runtime.Composable
 import com.arkivanov.decompose.ComponentContext
 
@@ -13,10 +14,11 @@ class TestExplorerComponent(
     ctx: ComponentContext,
     override val panelInfo: PanelInfo,
     private val session: TestExplorerSession,
+    private val openSource: ((SourceLocation) -> Unit)? = null,
 ) : PanelComponentWithUI, ComponentContext by ctx {
 
     @Composable
     override fun Content() {
-        TestExplorerContent(session)
+        TestExplorerContent(session, openSource)
     }
 }

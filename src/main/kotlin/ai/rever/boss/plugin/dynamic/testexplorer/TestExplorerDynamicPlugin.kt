@@ -2,6 +2,7 @@ package ai.rever.boss.plugin.dynamic.testexplorer
 
 import ai.rever.boss.plugin.api.DynamicPlugin
 import ai.rever.boss.plugin.api.PluginContext
+import ai.rever.boss.plugin.dynamic.testexplorer.core.SourceLocation
 
 /**
  * Test Explorer - a dynamic BOSS plugin.
@@ -27,8 +28,16 @@ class TestExplorerDynamicPlugin : DynamicPlugin {
         val session = TestExplorerSession(projectPathSupplier = { context.projectPath })
         this.session = session
 
+        // Opening a failing test's source goes through the host's own editor. A host that offers no
+        // split view gives no way to open a file, and then the panel does not offer to.
+        val openSource =
+            context.splitViewOperations?.let { editor ->
+                { location: SourceLocation ->
+                    editor.openFileAtPosition(location.path, location.fileName, location.line, 1)
+                }
+            }
         context.panelRegistry.registerPanel(TestExplorerInfo) { ctx, panelInfo ->
-            TestExplorerComponent(ctx, panelInfo, session)
+            TestExplorerComponent(ctx, panelInfo, session, openSource)
         }
         // Contribute test_* MCP tools; auto-removed when this plugin is disabled or unloaded.
         context.registerMcpToolProvider(TestExplorerMcpToolProvider(pluginId, session))

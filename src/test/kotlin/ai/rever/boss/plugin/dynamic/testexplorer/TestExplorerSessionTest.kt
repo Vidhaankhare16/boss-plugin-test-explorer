@@ -131,4 +131,30 @@ class TestExplorerSessionTest {
 
         assertEquals(listOf("compiling", "running"), session.output.value)
     }
+
+    @Test
+    fun `a finished run publishes where each failure broke, for the panel and the tools alike`() = runBlocking {
+        val project = kotlin.io.path.createTempDirectory("te-session").toFile()
+        try {
+            val source = java.io.File(project, "src/test/kotlin/com/example/FooTest.kt").apply {
+                parentFile.mkdirs()
+                writeText("// test")
+            }
+            val trace = "java.lang.AssertionError: no\n    at com.example.FooTest.bad(FooTest.kt:9)"
+            val broken =
+                TestCaseResult("com.example.FooTest", "bad", TestStatus.FAILED, 0.1, message = "no", details = trace)
+            val run = TestRunReport(listOf(TestSuiteResult("S", listOf(broken))), command = "fake", exitCode = 1)
+            val session = session(FakeExecution(run), projectPath = project.path)
+
+            session.start(RunMode.ALL)!!.await()
+
+            val location = session.locations.value[broken.qualifiedName]
+            assertEquals(source.absolutePath, location?.path)
+            assertEquals(9, location?.line)
+            assertEquals(project, session.projectRoot.value)
+            session.dispose()
+        } finally {
+            project.deleteRecursively()
+        }
+    }
 }

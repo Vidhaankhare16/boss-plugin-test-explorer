@@ -1,5 +1,6 @@
 package ai.rever.boss.plugin.dynamic.testexplorer
 
+import ai.rever.boss.plugin.dynamic.testexplorer.core.SourceLocation
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestCaseResult
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestCounts
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestRunReport
@@ -44,25 +45,35 @@ import androidx.compose.ui.unit.sp
 import compose.icons.FeatherIcons
 import compose.icons.feathericons.ChevronDown
 import compose.icons.feathericons.ChevronRight
+import compose.icons.feathericons.ExternalLink
 import compose.icons.feathericons.FileText
 import compose.icons.feathericons.Filter
 import compose.icons.feathericons.Play
 import compose.icons.feathericons.RefreshCw
 import compose.icons.feathericons.Square
 import kotlinx.coroutines.launch
+import java.io.File
 
 /**
  * The Test Explorer panel UI. Reads everything from [TestExplorerSession]'s flows so it stays in
  * lockstep with runs an agent starts through the MCP tools, and writes nothing back except the
  * three actions (run, rerun failed, stop).
+ *
+ * [openSource] opens a failing test's file at the line it broke, in the host's editor. Null when the
+ * host offers no way to open a file, and then the panel simply does not offer to.
  */
 @Composable
-fun TestExplorerContent(session: TestExplorerSession) {
+fun TestExplorerContent(
+    session: TestExplorerSession,
+    openSource: ((SourceLocation) -> Unit)? = null,
+) {
     BossTheme {
         val report by session.report.collectAsState()
         val running by session.isRunning.collectAsState()
         val projectMissing by session.projectMissing.collectAsState()
         val output by session.output.collectAsState()
+        val locations by session.locations.collectAsState()
+        val projectRoot by session.projectRoot.collectAsState()
         val scope = rememberCoroutineScope()
 
         var showFailedOnly by remember { mutableStateOf(false) }
@@ -101,7 +112,10 @@ fun TestExplorerContent(session: TestExplorerSession) {
 
             when {
                 showLog -> LogView(output)
-                report != null -> TreeView(report!!, showFailedOnly)
+                report != null -> {
+                    val sources = SourceLinks(locations, projectRoot, openSource)
+                    TreeView(report!!, showFailedOnly, sources)
+                }
                 else -> EmptyState(projectMissing)
             }
         }
@@ -211,8 +225,17 @@ private fun Toggle(icon: ImageVector, label: String, active: Boolean, onClick: (
     }
 }
 
+/** What a case row needs to point at its source: the resolved locations and a way to open one. */
+private class SourceLinks(
+    val locations: Map<String, SourceLocation>,
+    val projectRoot: File?,
+    val open: ((SourceLocation) -> Unit)?,
+) {
+    fun locationOf(case: TestCaseResult): SourceLocation? = locations[case.qualifiedName]
+}
+
 @Composable
-private fun TreeView(report: TestRunReport, showFailedOnly: Boolean) {
+private fun TreeView(report: TestRunReport, showFailedOnly: Boolean, sources: SourceLinks) {
     val suites = report.suites
         .map { suite -> suite to suite.cases.filter { !showFailedOnly || it.failed } }
         .filter { (_, cases) -> cases.isNotEmpty() }
@@ -232,7 +255,7 @@ private fun TreeView(report: TestRunReport, showFailedOnly: Boolean) {
                 SuiteRow(suite)
             }
             items(cases, key = { "case:${suite.name}:${it.qualifiedName}" }) { case ->
-                CaseRow(case)
+                CaseRow(case, sources)
             }
         }
     }
@@ -256,9 +279,11 @@ private fun SuiteRow(suite: TestSuiteResult) {
 }
 
 @Composable
-private fun CaseRow(case: TestCaseResult) {
+private fun CaseRow(case: TestCaseResult, sources: SourceLinks) {
     var expanded by remember { mutableStateOf(false) }
     val hasDetail = case.message != null || case.details != null
+    val location = sources.locationOf(case)
+    val open = sources.open?.takeIf { location != null }
     Column(modifier = Modifier.fillMaxWidth().padding(start = 8.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -275,6 +300,16 @@ private fun CaseRow(case: TestCaseResult) {
                 fontSize = 12.sp,
                 modifier = Modifier.weight(1f),
             )
+            if (open != null && location != null) {
+                // One click from a red test to the line that broke - the whole point of the row.
+                Icon(
+                    imageVector = FeatherIcons.ExternalLink,
+                    contentDescription = "Open ${location.fileName} at line ${location.line}",
+                    tint = BossThemeColors.AccentColor,
+                    modifier = Modifier.size(12.dp).clickable { open(location) },
+                )
+                Spacer(Modifier.width(6.dp))
+            }
             if (hasDetail) {
                 Icon(
                     imageVector = if (expanded) FeatherIcons.ChevronDown else FeatherIcons.ChevronRight,
@@ -293,6 +328,7 @@ private fun CaseRow(case: TestCaseResult) {
                     .padding(6.dp),
             ) {
                 case.message?.let { Text(it, color = BossThemeColors.ErrorColor, fontSize = 11.sp) }
+                location?.let { SourceLine(it, sources.projectRoot, open) }
                 case.details?.let {
                     if (case.message != null) Spacer(Modifier.size(4.dp))
                     Text(
@@ -303,6 +339,29 @@ private fun CaseRow(case: TestCaseResult) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SourceLine(location: SourceLocation, projectRoot: File?, open: ((SourceLocation) -> Unit)?) {
+    Spacer(Modifier.size(4.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = "at ${location.display(projectRoot)}",
+            color = BossThemeColors.TextSecondary,
+            fontSize = 10.sp,
+            fontFamily = FontFamily.Monospace,
+            modifier = Modifier.weight(1f, fill = false),
+        )
+        if (open != null) {
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = "Open in editor",
+                color = BossThemeColors.AccentColor,
+                fontSize = 10.sp,
+                modifier = Modifier.clickable { open(location) },
+            )
         }
     }
 }

@@ -1,16 +1,24 @@
 package ai.rever.boss.plugin.dynamic.testexplorer.core
 
+import java.io.File
+
 /**
  * Renders a [TestRunReport] as compact text for an agent reading tool output.
  *
  * The shape is deliberate: the counts and exit code first so a one-glance answer to "did the
  * tests pass" is on the first lines, then the failures with their messages, because that is what
- * an agent acts on. It is bounded - a thousand-failure run must not flood the model's context -
+ * an agent acts on, each with the file and line it broke at when that is known, so the agent can go
+ * straight to the fix. It is bounded - a thousand-failure run must not flood the model's context -
  * and it says when it truncated so the reader knows more exist.
  */
 object TestReportText {
 
-    fun summary(report: TestRunReport, maxFailures: Int = DEFAULT_MAX_FAILURES): String {
+    fun summary(
+        report: TestRunReport,
+        locations: Map<String, SourceLocation> = emptyMap(),
+        projectRoot: File? = null,
+        maxFailures: Int = DEFAULT_MAX_FAILURES,
+    ): String {
         val counts = report.counts
         val lines = mutableListOf<String>()
         lines += "Command: ${report.command}"
@@ -25,6 +33,7 @@ object TestReportText {
             failures.take(maxFailures).forEach { case ->
                 lines += "  - ${case.qualifiedName} [${case.status}]"
                 case.message?.let { lines += "      ${it.firstLine()}" }
+                locations[case.qualifiedName]?.let { lines += "      at ${it.display(projectRoot)}" }
             }
             if (failures.size > maxFailures) {
                 lines += "  ... and ${failures.size - maxFailures} more (use test_list to see all)."
