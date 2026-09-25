@@ -101,4 +101,34 @@ class JUnitXmlParserTest {
         assertEquals(listOf("test_a", "test_c"), suites.first().cases.map { it.name })
         assertEquals(1, suites.first().counts.failing)
     }
+
+    @Test
+    fun `a report with a DOCTYPE is refused, so an external entity is never read`() {
+        val xml =
+            """
+            <?xml version="1.0"?>
+            <!DOCTYPE testsuite [ <!ENTITY secret SYSTEM "file:///etc/passwd"> ]>
+            <testsuite name="t"><testcase name="c"><failure message="&secret;"/></testcase></testsuite>
+            """.trimIndent()
+
+        assertTrue(JUnitXmlParser.parse(xml).isEmpty())
+    }
+
+    /**
+     * BOSS 9.5.25 shares only some packages with a plugin: `javax.` yes, `org.w3c.` no. A DOM
+     * parser passed every test here and failed inside BOSS with NoClassDefFoundError, so the
+     * compiled parser must not reference `org/w3c` or `org/xml` at all.
+     */
+    @Test
+    fun `the parser touches no package BOSS withholds from plugins`() {
+        val loader = JUnitXmlParser::class.java.classLoader
+        val classFiles =
+            listOf("JUnitXmlParser", "JUnitXmlParser\$OpenSuite", "JUnitXmlParser\$OpenCase", "JUnitXmlParser\$Marker")
+                .mapNotNull { loader.getResourceAsStream("ai/rever/boss/plugin/dynamic/testexplorer/core/$it.class") }
+        assertTrue(classFiles.isNotEmpty(), "compiled parser classes should be on the test classpath")
+        classFiles.forEach { stream ->
+            val bytes = stream.use { it.readBytes() }.toString(Charsets.ISO_8859_1)
+            assertTrue("org/w3c" !in bytes && "org/xml" !in bytes, "the parser must not load org.w3c or org.xml classes")
+        }
+    }
 }
