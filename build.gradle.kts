@@ -9,7 +9,7 @@ plugins {
 group = "ai.rever.boss.plugin.dynamic"
 // 0.1.0: first release. Runs a project's JUnit-XML test suite (Gradle, Maven, pytest),
 // shows a pass/fail tree, and exposes test_* MCP tools to in-terminal agents.
-version = "0.1.0"
+version = "0.2.0"
 
 java {
     toolchain {

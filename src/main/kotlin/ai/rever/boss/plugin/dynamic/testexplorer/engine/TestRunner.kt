@@ -1,5 +1,7 @@
 package ai.rever.boss.plugin.dynamic.testexplorer.engine
 
+import ai.rever.boss.plugin.dynamic.testexplorer.core.AffectedSelection
+import ai.rever.boss.plugin.dynamic.testexplorer.core.AffectedTests
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestCaseResult
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestFramework
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestReportCollector
@@ -13,8 +15,11 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import kotlin.coroutines.resume
 
-/** Whether to run the whole suite or only the cases that failed last time. */
-enum class RunMode { ALL, FAILED_ONLY }
+/**
+ * What to run: the whole suite, only the cases that failed last time, or only the tests the
+ * uncommitted changes touch (see [AffectedTests]).
+ */
+enum class RunMode { ALL, FAILED_ONLY, AFFECTED }
 
 /**
  * Running a project's tests and reporting what happened.
@@ -46,6 +51,7 @@ class TestRunner(
     private val projectDir: File,
     private val isWindows: Boolean = System.getProperty("os.name").orEmpty().startsWith("Windows", ignoreCase = true),
     private val clock: () -> Long = System::currentTimeMillis,
+    private val changedFiles: () -> List<String>? = { GitChanges(projectDir).changedFiles() },
 ) : TestExecution {
 
     /** The framework detected from the project root, or null when none is recognised. */
@@ -81,11 +87,31 @@ class TestRunner(
         // absolute file is used only to delete a stale report and to read the fresh one.
         val reportRelative = "$WORK_DIR/pytest-report.xml"
         val reportFile = File(projectDir, reportRelative)
+        var scopeNote: String? = null
         val command =
             when (mode) {
                 RunMode.ALL -> TestRunnerDetection.fullRunCommand(framework, isWindows, reportRelative)
                 RunMode.FAILED_ONLY ->
                     TestRunnerDetection.rerunCommand(framework, isWindows, priorFailures, reportRelative)
+                RunMode.AFFECTED -> {
+                    val selection =
+                        affectedSelection(framework)
+                            ?: return TestRunReport.empty(
+                                command = "(no change set)",
+                                exitCode = null,
+                                note = "This project is not a git repository, so there are no changes to scope a run " +
+                                    "by. Run the whole suite instead.",
+                            )
+                    scopeNote = describe(selection)
+                    if (selection.isEmpty) {
+                        return TestRunReport.empty(command = "(nothing to run)", exitCode = null, note = scopeNote)
+                    }
+                    if (selection.runEverything) {
+                        TestRunnerDetection.fullRunCommand(framework, isWindows, reportRelative)
+                    } else {
+                        TestRunnerDetection.affectedCommand(framework, isWindows, selection.testFiles, reportRelative)
+                    }
+                }
             }
         val commandLine = command.joinToString(" ")
 
@@ -107,7 +133,38 @@ class TestRunner(
                 }
 
         val reports = readReports(framework, reportFile, startedAt)
-        return TestReportCollector.collect(commandLine, exitCode, reports)
+        val report = TestReportCollector.collect(commandLine, exitCode, reports)
+        // Say why this subset ran, ahead of anything the collector had to say about the reports.
+        val note = listOfNotNull(scopeNote, report.note).joinToString(" ").ifBlank { null }
+        return report.copy(note = note)
+    }
+
+    /** Which tests the current changes touch, or null when the project is not a git repository. */
+    internal fun affectedSelection(framework: TestFramework): AffectedSelection? {
+        val changed = changedFiles() ?: return null
+        return AffectedTests.select(framework, changed, testFileText(framework))
+    }
+
+    /**
+     * Every test file in the project with its text, project-relative, for [AffectedTests] to search
+     * for references. Bounded: dependency and build trees are pruned and an oversized file is
+     * skipped, because a generated fixture must not make a quick scoped run slow.
+     */
+    internal fun testFileText(framework: TestFramework): Map<String, String> =
+        projectDir
+            .walkTopDown()
+            .onEnter { it == projectDir || it.name !in PRUNED_DIRS + SCOPE_PRUNED_DIRS }
+            .filter { it.isFile && it.length() <= MAX_TEST_FILE_BYTES }
+            .map { it.relativeTo(projectDir).invariantSeparatorsPath to it }
+            .filter { (path, _) -> AffectedTests.isTestFile(framework, path) }
+            .mapNotNull { (path, file) -> runCatching { path to file.readText() }.getOrNull() }
+            .toMap()
+
+    private fun describe(selection: AffectedSelection): String {
+        if (selection.untested.isEmpty()) return selection.reason
+        val shown = selection.untested.take(MAX_UNTESTED_SHOWN).joinToString(", ")
+        val more = selection.untested.size - MAX_UNTESTED_SHOWN
+        return selection.reason + " No test refers to: " + shown + (if (more > 0) " and $more more." else ".")
     }
 
     private suspend fun execute(command: List<String>, onOutput: (String) -> Unit): Int =
@@ -180,5 +237,8 @@ class TestRunner(
         const val REPORT_GRACE_MILLIS = 2_000L
         const val WORK_DIR = ".boss-test-explorer"
         val PRUNED_DIRS = setOf(".git", ".gradle", "node_modules", ".venv", "venv")
+        val SCOPE_PRUNED_DIRS = setOf("build", "target", "out", "bin", "__pycache__", ".pytest_cache", WORK_DIR)
+        const val MAX_TEST_FILE_BYTES = 1_000_000L
+        const val MAX_UNTESTED_SHOWN = 5
     }
 }

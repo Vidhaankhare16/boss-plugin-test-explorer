@@ -1,5 +1,6 @@
 package ai.rever.boss.plugin.dynamic.testexplorer
 
+import ai.rever.boss.plugin.dynamic.testexplorer.core.SourceLocation
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestCaseResult
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestReportText
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestRunReport
@@ -49,5 +50,16 @@ class TestReportTextTest {
         assertTrue(text.contains("[PASSED]"))
         assertTrue(text.contains("S.ok"))
         assertTrue(text.contains("[SKIPPED]"))
+    }
+
+    @Test
+    fun `summary names the file and line each located failure broke at, relative to the project`() {
+        val root = java.io.File("proj").absoluteFile
+        val bad = TestCaseResult("S", "bad", TestStatus.FAILED, 0.2, message = "expected 1")
+        val located = mapOf(bad.qualifiedName to SourceLocation(java.io.File(root, "src/test/kotlin/S.kt").path, 14))
+
+        val text = TestReportText.summary(report(listOf(bad), exitCode = 1), located, root)
+
+        assertTrue(text.contains("      at src/test/kotlin/S.kt:14"), text)
     }
 }

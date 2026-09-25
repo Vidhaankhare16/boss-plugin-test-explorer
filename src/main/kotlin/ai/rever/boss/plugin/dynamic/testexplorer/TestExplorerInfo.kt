@@ -13,7 +13,9 @@ import compose.icons.feathericons.CheckCircle
  */
 object TestExplorerInfo : PanelInfo {
     override val id = PanelId("test-explorer", 30)
-    override val displayName = "Tests"
+    // The plugin's own name, not a shorter one: a person told to open "Test Explorer" looks for
+    // exactly that in the sidebar, the Toolbox menu and the tools launcher.
+    override val displayName = "Test Explorer"
     override val icon = FeatherIcons.CheckCircle
     override val defaultSlotPosition = left.bottom
 }

@@ -1,5 +1,7 @@
 package ai.rever.boss.plugin.dynamic.testexplorer
 
+import ai.rever.boss.plugin.dynamic.testexplorer.core.SourceLocation
+import ai.rever.boss.plugin.dynamic.testexplorer.core.SourceLocator
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestRunReport
 import ai.rever.boss.plugin.dynamic.testexplorer.engine.RunMode
 import ai.rever.boss.plugin.dynamic.testexplorer.engine.TestExecution
@@ -47,6 +49,19 @@ class TestExplorerSession(
     /** True when the last start found no open project, so the UI can say so plainly. */
     val projectMissing: StateFlow<Boolean> = _projectMissing.asStateFlow()
 
+    private val _locations = MutableStateFlow<Map<String, SourceLocation>>(emptyMap())
+
+    /**
+     * Where each failing test of [report] broke, keyed by qualified name. Resolved once per run, off
+     * the UI thread, so the panel's "Open in editor" and the MCP tools' `at path:line` agree.
+     */
+    val locations: StateFlow<Map<String, SourceLocation>> = _locations.asStateFlow()
+
+    private val _projectRoot = MutableStateFlow<File?>(null)
+
+    /** The project the last run tested, so a location can be shown relative to it. */
+    val projectRoot: StateFlow<File?> = _projectRoot.asStateFlow()
+
     private var current: Deferred<TestRunReport>? = null
 
     /**
@@ -74,6 +89,9 @@ class TestExplorerSession(
                 scope.async {
                     try {
                         val result = runner.run(mode, priorFailures) { line -> appendOutput(line) }
+                        // Locations first, so a report never lands without the lines it points at.
+                        _locations.value = SourceLocator.locateAll(result, File(projectPath))
+                        _projectRoot.value = File(projectPath)
                         // Set the report from inside the run so a caller that does not await the
                         // Deferred (the panel) still sees the result land in the flow. A cancelled
                         // run (Stop) throws before here and leaves the previous report in place.

@@ -2,6 +2,7 @@ package ai.rever.boss.plugin.dynamic.testexplorer
 
 import ai.rever.boss.plugin.api.DynamicPlugin
 import ai.rever.boss.plugin.api.PluginContext
+import ai.rever.boss.plugin.dynamic.testexplorer.core.SourceLocation
 
 /**
  * Test Explorer - a dynamic BOSS plugin.
@@ -14,7 +15,7 @@ import ai.rever.boss.plugin.api.PluginContext
 class TestExplorerDynamicPlugin : DynamicPlugin {
     override val pluginId: String = "ai.rever.boss.plugin.dynamic.testexplorer"
     override val displayName: String = "Test Explorer"
-    override val version: String = "0.1.0"
+    override val version: String = "0.2.0"
     override val description: String = "Run the open project's tests and see a pass/fail tree, plus test_* MCP tools"
     override val author: String = "Vidhaankhare16"
     override val url: String = "https://github.com/Vidhaankhare16/boss-plugin-test-explorer"
@@ -27,9 +28,28 @@ class TestExplorerDynamicPlugin : DynamicPlugin {
         val session = TestExplorerSession(projectPathSupplier = { context.projectPath })
         this.session = session
 
+        // Opening a failing test's source goes through the host's own editor. A host that offers no
+        // split view gives no way to open a file, and then the panel does not offer to.
+        val openSource =
+            context.splitViewOperations?.let { editor ->
+                { location: SourceLocation ->
+                    editor.openFileAtPosition(location.path, location.fileName, location.line, 1)
+                }
+            }
         context.panelRegistry.registerPanel(TestExplorerInfo) { ctx, panelInfo ->
-            TestExplorerComponent(ctx, panelInfo, session)
+            TestExplorerComponent(ctx, panelInfo, session, openSource)
         }
+        // The latest run's outcome in the status bar, so red tests stay visible with the panel closed.
+        // Removed by the host when this plugin is disabled or unloaded, like the tools below.
+        val panelEvents = context.panelEventProvider
+        val windowId = context.windowId
+        val openPanel: (suspend () -> Unit)? =
+            if (panelEvents != null && windowId != null) {
+                { panelEvents.openPanel(TestExplorerInfo.id, windowId) }
+            } else {
+                null
+            }
+        context.registerStatusBarItem(TestStatusBarItem(session, openPanel))
         // Contribute test_* MCP tools; auto-removed when this plugin is disabled or unloaded.
         context.registerMcpToolProvider(TestExplorerMcpToolProvider(pluginId, session))
     }

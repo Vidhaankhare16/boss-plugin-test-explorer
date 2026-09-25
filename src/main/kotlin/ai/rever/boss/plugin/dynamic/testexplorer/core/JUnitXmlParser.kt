@@ -45,17 +45,27 @@ object JUnitXmlParser {
         val suiteElements = document.getElementsByTagName("testsuite")
         return (0 until suiteElements.length)
             .mapNotNull { suiteElements.item(it) as? Element }
-            .map { parseSuite(it) }
+            .flatMap { parseSuite(it) }
     }
 
-    private fun parseSuite(suite: Element): TestSuiteResult {
+    /**
+     * One `<testsuite>`, as one group - or, when its cases name other classes, one group per class.
+     *
+     * pytest writes a single `<testsuite name="pytest">` for the whole run and carries each test's
+     * module in its `classname`, so the report-level name says nothing about where a test lives and
+     * a panel grouped by it shows every test under "pytest". Gradle and Surefire already name the
+     * suite after the class its cases belong to, so for them this changes nothing.
+     */
+    private fun parseSuite(suite: Element): List<TestSuiteResult> {
         val suiteName = suite.getAttribute("name").ifBlank { "(unnamed suite)" }
         val caseElements = suite.getElementsByTagName("testcase")
         val cases =
             (0 until caseElements.length)
                 .mapNotNull { caseElements.item(it) as? Element }
                 .map { parseCase(it, suiteName) }
-        return TestSuiteResult(suiteName, cases)
+        if (cases.all { it.className == suiteName }) return listOf(TestSuiteResult(suiteName, cases))
+        // groupBy keeps first-seen order, so groups appear in the order the runner ran them.
+        return cases.groupBy { it.className }.map { (className, group) -> TestSuiteResult(className, group) }
     }
 
     private fun parseCase(case: Element, suiteName: String): TestCaseResult {

@@ -66,9 +66,10 @@ class TestExplorerMcpToolsTest {
     fun `the executing tools are declared as such and the reading tools are not`() {
         val tools = provider(session(FakeExecution(passing))).tools().associateBy { it.name }
 
-        assertEquals(setOf("test_run", "test_rerun_failed", "test_results", "test_list"), tools.keys)
+        assertEquals(setOf("test_run", "test_rerun_failed", "test_affected", "test_results", "test_list"), tools.keys)
         assertFalse(tools.getValue("test_run").readOnly, "test_run executes the project's code")
         assertFalse(tools.getValue("test_rerun_failed").readOnly, "a rerun executes the project's code")
+        assertFalse(tools.getValue("test_affected").readOnly, "a scoped run still executes the project's code")
         assertTrue(tools.getValue("test_results").readOnly)
         assertTrue(tools.getValue("test_list").readOnly)
     }

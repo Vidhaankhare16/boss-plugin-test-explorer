@@ -103,6 +103,55 @@ object TestRunnerDetection {
         return wrap(isWindows, bare)
     }
 
+    /**
+     * The argv for running only [testFiles], project-relative paths chosen by [AffectedTests].
+     *
+     * - pytest takes the files themselves.
+     * - Gradle is scoped per module (`:app:test --tests com.example.FooTest`), because a bare
+     *   `test --tests X` fails in every module where X matches nothing.
+     * - Maven takes simple class names, told not to fail in modules where none of them live.
+     */
+    fun affectedCommand(
+        framework: TestFramework,
+        isWindows: Boolean,
+        testFiles: List<String>,
+        reportPath: String,
+    ): List<String> {
+        if (testFiles.isEmpty()) return fullRunCommand(framework, isWindows, reportPath)
+        val bare =
+            when (framework) {
+                TestFramework.PYTEST -> listOf("pytest") + testFiles + "--junitxml=$reportPath"
+
+                TestFramework.GRADLE ->
+                    listOf(gradleExe(isWindows)) +
+                        testFiles.groupBy(::moduleOf).flatMap { (module, files) ->
+                            val task = if (module.isEmpty()) "test" else ":${module.replace('/', ':')}:test"
+                            listOf(task) + files.flatMap { listOf("--tests", jvmClassOf(it)) }
+                        }
+
+                TestFramework.MAVEN ->
+                    listOf(
+                        "mvn",
+                        "test",
+                        "-DfailIfNoTests=false",
+                        "-Dsurefire.failIfNoSpecifiedTests=false",
+                        "-Dtest=" + testFiles.joinToString(",") { jvmClassOf(it).substringAfterLast('.') },
+                    )
+            }
+        return wrap(isWindows, bare)
+    }
+
+    /** `app/core` for `app/core/src/test/kotlin/...`, and empty for a root-module test. */
+    private fun moduleOf(testFile: String): String = testFile.substringBefore("src/test/", "").trimEnd('/')
+
+    /** `com.example.FooTest` for `app/src/test/kotlin/com/example/FooTest.kt`. */
+    private fun jvmClassOf(testFile: String): String =
+        testFile
+            .substringAfter("src/test/")
+            .substringAfter('/')
+            .substringBeforeLast('.')
+            .replace('/', '.')
+
     /** `com.example.FooTest#a+b,com.example.BarTest#c` - Surefire's simple-name selector syntax. */
     private fun mavenSelector(failures: List<TestCaseResult>): String =
         failures
