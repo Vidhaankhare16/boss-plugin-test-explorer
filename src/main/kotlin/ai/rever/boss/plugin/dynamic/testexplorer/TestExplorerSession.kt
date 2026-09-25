@@ -7,6 +7,7 @@ import ai.rever.boss.plugin.dynamic.testexplorer.engine.RunMode
 import ai.rever.boss.plugin.dynamic.testexplorer.engine.TestExecution
 import ai.rever.boss.plugin.dynamic.testexplorer.engine.TestRunner
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -85,8 +86,11 @@ class TestExplorerSession(
             _output.value = emptyList()
             _isRunning.value = true
 
+            // Created lazily and started only after it is recorded as [current]: started eagerly, a run
+            // that finishes at once could clear [current] in its finally before the assignment below,
+            // leaving the finished run in place so the next start() returned it instead of running.
             val job =
-                scope.async {
+                scope.async(start = CoroutineStart.LAZY) {
                     try {
                         val result = runner.run(mode, priorFailures) { line -> appendOutput(line) }
                         // Locations first, so a report never lands without the lines it points at.
@@ -103,6 +107,7 @@ class TestExplorerSession(
                     }
                 }
             current = job
+            job.start()
             job
         }
 
