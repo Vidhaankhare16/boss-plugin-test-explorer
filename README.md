@@ -74,17 +74,32 @@ a bounded time and, if the run is still going, return a "still running" note; th
 
 The loadable jar is written to `build/libs/boss-plugin-test-explorer-<version>.jar`.
 
-## Install (local development)
+## Install
 
-Copy the jar into a **dev-mode** BOSS data root so it never touches a production install:
+Download the jar from the [latest release](https://github.com/Vidhaankhare16/boss-plugin-test-explorer/releases/latest)
+(or build it, above), then check it against your BOSS and load it into the running app:
 
 ```bash
-cp build/libs/boss-plugin-test-explorer-*.jar ~/.boss_debug/plugins/
-rm -rf ~/.boss_debug/plugin-cache/ai.rever.boss.plugin.dynamic.testexplorer
+boss plugin validate boss-plugin-test-explorer-<version>.jar --json
+boss plugin link boss-plugin-test-explorer-<version>.jar --json
 ```
 
-Restart the dev host and open the **Tests** panel in the left sidebar. To use the MCP tools,
-enable them under Toolbox -> MCP and attach an agent.
+On Windows, call `BOSS.exe` itself until the `boss` launcher can find a default install
+([BossConsole#1589](https://github.com/risa-labs-inc/BossConsole/pull/1589)). It is a GUI program,
+so capture its output from PowerShell:
+
+```powershell
+Start-Process "$env:LOCALAPPDATA\BOSS\BOSS.exe" -ArgumentList 'plugin','link','C:\jars\test-explorer.jar','--json' `
+  -Wait -NoNewWindow -RedirectStandardOutput link.json; Get-Content link.json
+```
+
+`validate` runs the host's own checks (manifest, bytecode, API compatibility) without installing
+anything. `link` hot-loads the jar into the running app, so no restart is needed. Then open
+**Test Explorer** from the Toolbox menu. To use the MCP tools, enable them under Toolbox -> MCP and
+attach an agent.
+
+Use 0.2.1 or later on BOSS 9.5.25 and newer: from 9.5.25 the host no longer lets a plugin load
+`org.w3c.dom`, which 0.2.0's report parser used.
 
 ## How it works
 
@@ -127,21 +142,24 @@ and is declared `readOnly = false` so the host governs it accordingly.
 
 Stated here rather than discovered later.
 
-- **First release (0.1.0).** It runs a project's tests and reports them. It does not watch files,
-  debug, edit test code, or run a single test by clicking it.
+- **It runs tests and reports them.** It does not watch files, debug, edit test code, or run a
+  single test by clicking it.
 - **Only JUnit-XML runners.** A runner that does not emit that format (a bare `npm test`,
   `cargo test`, `go test` without a JUnit reporter) is not detected. That is a deliberate v1 scope,
   not a claim those cannot be added.
 - **Rerun-failed on Windows with spaced test names is imprecise.** The command goes through
   `cmd /c` so a `.bat` wrapper resolves, and `cmd` resplits an argument containing spaces, so a
   Kotlin test named with backticks may not filter exactly. The full run is unaffected.
-- **A stopped run keeps the previous report.** Stop kills the process tree and abandons the run
-  rather than reporting a half-finished one.
+- **A stopped run keeps the previous report.** Stop kills the whole process tree (the launcher,
+  the runner, and anything they started) and abandons the run rather than reporting a
+  half-finished one. A Gradle daemon started by that run ends with it, so the next run starts a
+  fresh one; a daemon that was already running is left alone.
 - **Reports are matched by modification time.** A run that writes no report at all (a compile
-  error) is reported as exactly that, but a runner that leaves a report untouched because it
-  skipped work will look like it produced nothing.
-- **Validated live on BOSS 9.5.22 (Windows 11) with pytest.** Gradle and Maven are covered by
-  tests but not yet by a live run inside the host, and macOS is untested. See
+  error) is reported as exactly that. Gradle would skip an unchanged test task and leave its report
+  untouched, so every Gradle run starts with `cleanTest`; a runner added later that skips work the
+  same way needs the equivalent.
+- **Validated live on BOSS 9.5.22 and 9.5.25 (Windows 11) with pytest.** Gradle and Maven are
+  covered by tests but not yet by a live run inside the host, and macOS is untested. See
   [docs/VALIDATION.md](docs/VALIDATION.md) for exactly what has and has not been tested.
 
 ## License

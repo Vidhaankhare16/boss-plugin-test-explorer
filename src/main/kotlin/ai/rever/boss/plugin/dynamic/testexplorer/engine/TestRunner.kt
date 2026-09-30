@@ -7,13 +7,7 @@ import ai.rever.boss.plugin.dynamic.testexplorer.core.TestFramework
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestReportCollector
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestRunReport
 import ai.rever.boss.plugin.dynamic.testexplorer.core.TestRunnerDetection
-import kotlinx.coroutines.CancellableContinuation
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
-import kotlin.coroutines.resume
 
 /**
  * What to run: the whole suite, only the cases that failed last time, or only the tests the
@@ -122,7 +116,7 @@ class TestRunner(
         val startedAt = clock()
 
         val exitCode =
-            runCatching { execute(command, onOutput) }
+            runCatching { runProcess(command, projectDir, onOutput) }
                 .getOrElse { throwable ->
                     if (throwable is InterruptedException) throw throwable
                     return TestRunReport.empty(
@@ -167,32 +161,6 @@ class TestRunner(
         return selection.reason + " No test refers to: " + shown + (if (more > 0) " and $more more." else ".")
     }
 
-    private suspend fun execute(command: List<String>, onOutput: (String) -> Unit): Int =
-        suspendCancellableCoroutine { continuation ->
-            val process =
-                ProcessBuilder(command)
-                    .directory(projectDir)
-                    .redirectErrorStream(true)
-                    .start()
-
-            continuation.invokeOnCancellation { process.destroyForcibly() }
-
-            // One reader thread drains the merged stdout/stderr so the pipe never fills and stalls
-            // the child, forwarding each line to the panel's live log.
-            val pump =
-                CoroutineScope(Dispatchers.IO).launch {
-                    process.inputStream.bufferedReader().useLines { lines ->
-                        lines.forEach(onOutput)
-                    }
-                }
-
-            CoroutineScope(Dispatchers.IO).launch {
-                val code = process.waitFor()
-                pump.join()
-                continuation.resumeIfActive(code)
-            }
-        }
-
     /**
      * Reads the XML this run produced, ignoring reports left by an earlier run.
      *
@@ -228,10 +196,6 @@ class TestRunner(
 
     /** The file's path with `/` separators, so a marker match works the same on Windows. */
     private fun File.invariantPath(): String = path.replace('\\', '/')
-
-    private fun CancellableContinuation<Int>.resumeIfActive(value: Int) {
-        if (isActive) resume(value)
-    }
 
     private companion object {
         const val REPORT_GRACE_MILLIS = 2_000L

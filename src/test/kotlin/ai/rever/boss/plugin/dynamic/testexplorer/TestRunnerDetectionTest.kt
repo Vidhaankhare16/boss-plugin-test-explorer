@@ -35,11 +35,11 @@ class TestRunnerDetectionTest {
     @Test
     fun `gradle full run uses the platform wrapper`() {
         assertEquals(
-            listOf("./gradlew", "test"),
+            listOf("./gradlew", "cleanTest", "test"),
             TestRunnerDetection.fullRunCommand(TestFramework.GRADLE, isWindows = false, reportPath = "x"),
         )
         assertEquals(
-            listOf("cmd", "/c", "gradlew.bat", "test"),
+            listOf("cmd", "/c", "gradlew.bat", "cleanTest", "test"),
             TestRunnerDetection.fullRunCommand(TestFramework.GRADLE, isWindows = true, reportPath = "x"),
         )
     }
@@ -55,7 +55,7 @@ class TestRunnerDetectionTest {
 
         assertEquals(
             listOf(
-                "./gradlew", "test",
+                "./gradlew", "cleanTest", "test",
                 "--tests", "com.example.FooTest.does a thing",
                 "--tests", "com.example.BarTest.does another",
             ),

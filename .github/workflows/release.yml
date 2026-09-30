@@ -45,8 +45,14 @@ jobs:
       - name: Attach the jar to the release
         env:
           GH_TOKEN: ${{ github.token }}
+        # A release made by hand in the web UI before the tag's run finishes already exists, and
+        # `gh release create` refuses it; attach (or replace) the jar on it instead.
         run: |
-          gh release create "${GITHUB_REF_NAME}" \
-            --title "${GITHUB_REF_NAME}" \
-            --generate-notes \
-            build/libs/boss-plugin-test-explorer-*.jar
+          if gh release view "${GITHUB_REF_NAME}" > /dev/null 2>&1; then
+            gh release upload "${GITHUB_REF_NAME}" build/libs/boss-plugin-test-explorer-*.jar --clobber
+          else
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "${GITHUB_REF_NAME}" \
+              --generate-notes \
+              build/libs/boss-plugin-test-explorer-*.jar
+          fi

@@ -135,9 +135,9 @@ class AffectedTestsTest {
         assertEquals(
             listOf(
                 "./gradlew",
-                ":app:test", "--tests", "com.shop.CartTest",
-                "test", "--tests", "com.root.RootTest",
-                ":libs:core:test", "--tests", "a.BTest",
+                ":app:cleanTest", ":app:test", "--tests", "com.shop.CartTest",
+                ":cleanTest", ":test", "--tests", "com.root.RootTest",
+                ":libs:core:cleanTest", ":libs:core:test", "--tests", "a.BTest",
             ),
             command,
         )
