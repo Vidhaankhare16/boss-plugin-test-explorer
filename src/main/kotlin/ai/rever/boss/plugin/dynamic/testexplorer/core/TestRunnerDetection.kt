@@ -66,7 +66,7 @@ object TestRunnerDetection {
         reportPath: String,
     ): List<String> =
         when (framework) {
-            TestFramework.GRADLE -> listOf(gradleExe(isWindows), "test")
+            TestFramework.GRADLE -> listOf(gradleExe(isWindows)) + gradleTestTasks("")
             TestFramework.MAVEN -> listOf("mvn", "test")
             TestFramework.PYTEST -> listOf("pytest", "--junitxml=$reportPath")
         }
@@ -91,7 +91,7 @@ object TestRunnerDetection {
         val bare =
             when (framework) {
                 TestFramework.GRADLE ->
-                    listOf(gradleExe(isWindows), "test") +
+                    listOf(gradleExe(isWindows)) + gradleTestTasks("") +
                         failures.flatMap { listOf("--tests", it.qualifiedName) }
 
                 TestFramework.MAVEN ->
@@ -125,8 +125,9 @@ object TestRunnerDetection {
                 TestFramework.GRADLE ->
                     listOf(gradleExe(isWindows)) +
                         testFiles.groupBy(::moduleOf).flatMap { (module, files) ->
-                            val task = if (module.isEmpty()) "test" else ":${module.replace('/', ':')}:test"
-                            listOf(task) + files.flatMap { listOf("--tests", jvmClassOf(it)) }
+                            // `:` for the root module: an unqualified task would run in every module.
+                            val path = if (module.isEmpty()) ":" else ":${module.replace('/', ':')}:"
+                            gradleTestTasks(path) + files.flatMap { listOf("--tests", jvmClassOf(it)) }
                         }
 
                 TestFramework.MAVEN ->
@@ -163,6 +164,15 @@ object TestRunnerDetection {
             }
 
     private fun gradleExe(isWindows: Boolean): String = if (isWindows) "gradlew.bat" else "./gradlew"
+
+    /**
+     * `cleanTest test` for the project at [path] (`""` or `:app:`). Gradle skips a `test` task whose
+     * inputs have not changed since it last passed, and a skipped task rewrites no report, so the
+     * second run of an unchanged green suite found only the previous run's XML and showed nothing.
+     * `cleanTest` rather than `test --rerun`, which needs Gradle 7.6. `test` stays last so the
+     * `--tests` filters that follow it bind to it.
+     */
+    private fun gradleTestTasks(path: String): List<String> = listOf("${path}cleanTest", "${path}test")
 
     /** Wrap a PATH/wrapper command in `cmd /c` on Windows so `.bat` and `.cmd` launchers resolve. */
     private fun wrap(isWindows: Boolean, bare: List<String>): List<String> =
